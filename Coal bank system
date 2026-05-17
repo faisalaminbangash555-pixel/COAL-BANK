@@ -1,0 +1,2020 @@
+; =====================================================
+;      COAL BANK MANAGEMENT SYSTEM - EMU8086
+;  MULTI-USER + DYNAMIC ADMIN + TRANSACTION HISTORY
+;         + LIVE BALANCE + LIQUIDITY
+
+
+.model small
+.stack 100h
+
+.data
+
+; =====================================================
+; UI DESIGN
+; =====================================================
+
+welcomeMsg db 10,13
+db "#############################################################",10,13
+db "#                                                           #",10,13
+db "#               COAL BANK MANAGEMENT SYSTEM                 #",10,13
+db "#                                                           #",10,13
+db "#############################################################$"
+
+loadingMsg db 10,13
+db "Initializing Banking System...",10,13
+db "Loading Secure Modules...",10,13
+db "Please Wait...$"
+
+mainMenu db 10,13
+db "============================================================",10,13
+db "                        MAIN MENU                           ",10,13
+db "============================================================",10,13
+db "[1] Register Account",10,13
+db "[2] Login",10,13
+db "[3] Exit",10,13
+db "[4] Admin Mode",10,13
+db "------------------------------------------------------------",10,13
+db "Enter Your Choice: $"
+
+userMenu db 10,13
+db "============================================================",10,13
+db "                       USER DASHBOARD                       ",10,13
+db "============================================================",10,13
+db "[1] Deposit Money",10,13
+db "[2] Withdraw Money",10,13
+db "[3] Balance Inquiry",10,13
+db "[4] Account Details",10,13
+db "[5] View Transaction History",10,13
+db "[6] Change PIN",10,13
+db "[7] Transfer Money",10,13
+db "[8] Logout",10,13
+db "------------------------------------------------------------",10,13
+db "Enter Your Choice: $"
+
+adminMenuText db 10,13
+db "============================================================",10,13
+db "                   ADMIN CONTROL PANEL                      ",10,13
+db "============================================================",10,13
+db "[1] View Master Ledger",10,13
+db "[2] View Bank Asset Liquidity",10,13
+db "[3] Exit to Main Menu",10,13
+db "------------------------------------------------------------",10,13
+db "Enter Your Choice: $"
+
+; =====================================================
+; INPUT PROMPTS
+; =====================================================
+
+nameMsg           db 10,13,"Enter Account Holder Name: $"
+accMsg            db 10,13,"Enter Account Number: $"
+pinMsg            db 10,13,"Enter 4-Digit PIN: $"
+newPinMsg         db 10,13,"Enter New 4-Digit PIN: $"
+loginAccMsg       db 10,13,"Enter Account Number: $"
+loginPinMsg       db 10,13,"Enter PIN: $"
+depositMsg        db 10,13,"Enter Deposit Amount: $"
+withdrawMsg       db 10,13,"Enter Withdraw Amount: $"
+transferAccMsg    db 10,13,"Enter Receiver Account Number: $"
+transferMsg       db 10,13,"Enter Transfer Amount: $"
+initialDepositMsg db 10,13,"Enter Initial Deposit Amount: $"
+
+senderBalMsg      db 10,13
+                  db "------------------------------------------------------------",10,13
+                  db "Your Available Balance: $"
+
+adminPromptMsg    db 10,13
+db "============================================================",10,13
+db "        System First-Time Setup: Please configure          ",10,13
+db "              the Master Admin PIN:                        ",10,13
+db "============================================================",10,13
+db "New Admin PIN: $"
+
+adminLoginMsg     db 10,13,"Enter Master Admin PIN: $"
+
+; =====================================================
+; STATUS & RESULT MESSAGES
+; =====================================================
+
+successMsg db 10,13
+db "============================================================",10,13
+db "              TRANSACTION  SUCCESSFUL                       ",10,13
+db "============================================================$"
+
+succesMsg db 10,13
+db "============================================================",10,13
+db "               PIN  CHANGE  SUCCESSFUL                      ",10,13
+db "============================================================$"
+
+loginFailMsg db 10,13
+db "============================================================",10,13
+db "                 INVALID LOGIN DETAILS                      ",10,13
+db "============================================================$"
+
+insufficientMsg db 10,13
+db "============================================================",10,13
+db "                 INSUFFICIENT BALANCE                       ",10,13
+db "============================================================$"
+
+blockedMsg db 10,13
+db "============================================================",10,13
+db "                 ACCOUNT TEMPORARILY BLOCKED                ",10,13
+db "============================================================$"
+
+duplicateMsg db 10,13
+db "============================================================",10,13
+db "               ACCOUNT ALREADY REGISTERED                   ",10,13
+db "============================================================$"
+
+systemFullMsg db 10,13
+db "============================================================",10,13
+db "           SYSTEM FULL - MAX 5 ACCOUNTS REACHED             ",10,13
+db "============================================================$"
+
+invalidRecMsg db 10,13
+db "============================================================",10,13
+db "               INVALID RECEIVER ACCOUNT                     ",10,13
+db "============================================================$"
+
+logoutMsg db 10,13
+db "============================================================",10,13
+db "                    LOGGING OUT...                          ",10,13
+db "============================================================$"
+
+noHistoryMsg db 10,13
+db "============================================================",10,13
+db "              NO TRANSACTION HISTORY FOUND                  ",10,13
+db "============================================================$"
+
+selfTransferMsg db 10,13
+db "============================================================",10,13
+db "          CANNOT TRANSFER TO YOUR OWN ACCOUNT               ",10,13
+db "============================================================$"
+
+histFullMsg db 10,13
+db "------------------------------------------------------------",10,13
+db "  (History full - oldest entries may be overwritten)$"
+
+changePinVerifyMsg db 10,13,"Enter Current PIN to Verify: $"
+
+; =====================================================
+; ACCOUNT DETAIL LABELS
+; =====================================================
+
+balanceText   db 10,13,"Current Balance:     $"
+holderText    db 10,13,"Account Holder Name: $"
+accountText   db 10,13,"Account Number:      $"
+availableText db 10,13,"Available Balance:   $"
+
+detailsText db 10,13
+db "============================================================",10,13
+db "                    ACCOUNT DETAILS                         ",10,13
+db "============================================================$"
+
+; =====================================================
+; TRANSACTION HISTORY DISPLAY LABELS
+; =====================================================
+
+historyHeader db 10,13
+db "============================================================",10,13
+db "                  TRANSACTION HISTORY                       ",10,13
+db "============================================================$"
+
+histTypeDepMsg  db 10,13,"  Type: Deposit           | Amount: $"
+histTypeWthMsg  db 10,13,"  Type: Withdrawal        | Amount: $"
+histTypeSndMsg  db 10,13,"  Type: Sent Transfer     | Amount: $"
+histTypeRcvMsg  db 10,13,"  Type: Received Transfer | Amount: $"
+
+histPeerNone    db "$"
+histToAcc       db "  To Acc:   $"
+histFromAcc     db "  From Acc: $"
+histNameLabel   db " | Name: $"
+histSepLine     db 10,13,"  ----------------------------------------------------$"
+
+; =====================================================
+; ADMIN LEDGER DISPLAY LABELS
+; =====================================================
+
+ledgerHeader db 10,13
+db "============================================================",10,13
+db "          MASTER LEDGER - ALL REGISTERED ACCOUNTS           ",10,13
+db "============================================================",10,13
+db "$"
+
+ledgerRowPrefix db 10,13,"  Acc No: $"
+ledgerNameCol   db "  |  Name: $"
+ledgerBalCol    db "  |  Balance: $"
+
+totalAssetsMsg  db 10,13
+db "============================================================",10,13
+db "            TOTAL BANK ASSET LIQUIDITY: $"
+
+totalAssetsEnd  db 10,13
+db "============================================================$"
+
+; =====================================================
+; TRANSFER LIST LABELS
+; =====================================================
+
+transferListHeader db 10,13
+db "--- REGISTERED ACCOUNTS ---",10,13,"$"
+transferAccText    db "  Name: $"
+
+; =====================================================
+; GENERAL UI
+; =====================================================
+
+pauseMsg db 10,13
+db "------------------------------------------------------------",10,13
+db "Press Any Key To Continue...$"
+
+newline db 10,13,"$"
+sepLine db 10,13,"------------------------------------------------------------$"
+
+; =====================================================
+; MULTI-USER DATABASE  (MAX 5 Users)
+; =====================================================
+
+MAX_USERS  equ 5
+MAX_HIST   equ 10          ; max transaction records per user
+
+; Core account arrays
+accountNo_arr dw MAX_USERS dup(0)
+userPin_arr   dw MAX_USERS dup(0)
+balance_arr   dw MAX_USERS dup(0)
+
+; =====================================================
+; [FIX-2] 2-D TRANSACTION HISTORY ARRAYS
+;
+;   Layout: 5 users x 10 transactions = 50 slots
+;
+;   Byte index for user U, transaction T:
+;       historyType_arr [ U*10 + T ]
+;
+;   Word index (byte offset) for user U, transaction T:
+;       historyAmt_arr  [ (U*10 + T) * 2 ]
+;       historyPeer_arr [ (U*10 + T) * 2 ]
+;
+;   histCount_arr[U] = how many transactions user U has.
+;   When histCount_arr[U] == MAX_HIST (10) the slot wraps
+;   around to index 0 so the oldest entry is overwritten.
+; =====================================================
+
+HIST_SLOTS equ MAX_USERS * MAX_HIST          ; = 50
+
+historyType_arr  db HIST_SLOTS dup('N')      ; 50 bytes
+historyAmt_arr   dw HIST_SLOTS dup(0)        ; 100 bytes
+historyPeer_arr  dw HIST_SLOTS dup(0)        ; 100 bytes
+histCount_arr    dw MAX_USERS  dup(0)        ; 10 bytes  (count per user, max 10)
+
+; Name store: 5 slots x 20 bytes = 100 bytes
+userName_arr db 100 dup('$')
+
+; =====================================================
+; SYSTEM CONTROL VARIABLES
+; =====================================================
+
+adminPin         dw 0
+isAdminPinSet    db 0
+userCount        dw 0
+currentUserIndex dw 0
+
+grandTotal       dw 0
+
+; [FIX-1] pinTemp: holds the running PIN total in
+;   memory so that int 21h echoing cannot corrupt it
+;   via register clobbering.
+pinTemp          dw 0
+
+tempName db 20 dup('$')
+choice   db ?
+attempts db 0
+
+; Scratch variables used by history append helper
+; (avoids pushing too many regs inside the inline code)
+hist_userIdx     dw 0        ; user index for append
+hist_type        db 'N'      ; transaction type char
+hist_amt         dw 0        ; transaction amount
+hist_peer        dw 0        ; peer account number
+
+.code
+
+; =====================================================
+; PROCEDURE: printNumber
+; Input:  AX = unsigned 16-bit value to print
+; Prints decimal digits. Safe: saves all regs.
+; =====================================================
+printNumber proc near
+
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov bx,10
+    mov cx,0
+
+pn_divide:
+    mov dx,0
+    div bx
+    push dx
+    inc cx
+    cmp ax,0
+    jne pn_divide
+
+pn_print:
+    pop dx
+    add dl,48
+    mov ah,02h
+    int 21h
+    loop pn_print
+
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+printNumber endp
+
+; =====================================================
+; PROCEDURE: clearScreen
+; =====================================================
+clearScreen proc near
+
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov ah,06h
+    mov al,0
+    mov bh,07h
+    mov ch,0
+    mov cl,0
+    mov dh,24
+    mov dl,79
+    int 10h
+
+    mov ah,02h
+    mov bh,0
+    mov dh,0
+    mov dl,0
+    int 10h
+
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+clearScreen endp
+
+; =====================================================
+; PROCEDURE: pause
+; =====================================================
+pause proc near
+
+    push ax
+    push dx
+
+    mov ah,09h
+    lea dx,pauseMsg
+    int 21h
+
+    mov ah,08h
+    int 21h
+
+    pop dx
+    pop ax
+    ret
+
+pause endp
+
+; =====================================================
+; PROCEDURE: flushKbBuffer
+; -------------------------------------------------------
+; Drains any leftover keystrokes from the DOS keyboard
+; buffer before a masked PIN read begins.
+;
+; Root-cause context:
+;   When the user selects a menu option (e.g. '6') via
+;   int 21h/ah=01h, DOS echoes the character but the
+;   ENTER key the user pressed to confirm is NOT always
+;   consumed.  In EMU8086, the residual ENTER (0x0D)
+;   sits in the BIOS keyboard buffer.  The very first
+;   int 21h/ah=08h inside readMaskedPin then reads that
+;   ENTER instead of the first PIN digit, shifting all
+;   subsequent digits by one position and producing a
+;   corrupted PIN value.
+;
+;   Fix: poll int 16h/ah=01h (keyboard status check).
+;   If a key is waiting, read and discard it with
+;   int 16h/ah=00h.  Repeat until the buffer is empty.
+;   int 16h is the BIOS keyboard service; it does NOT
+;   touch DS, DX, SI, DI, or segment registers -- safe
+;   to call any time.
+; =====================================================
+flushKbBuffer proc near
+
+    push ax
+
+fkb_check:
+    mov ah,01h
+    int 16h                   ; ZF=1 if buffer empty, ZF=0 if key waiting
+    jz  fkb_done              ; buffer empty -> done
+
+    mov ah,00h
+    int 16h                   ; read and discard the waiting key
+    jmp fkb_check             ; check again
+
+fkb_done:
+    pop ax
+    ret
+
+flushKbBuffer endp
+
+; =====================================================
+; PROCEDURE: appendHistory
+; -------------------------------------------------------
+; Appends one transaction record for a given user.
+; Reads from scratch variables before calling:
+;   hist_userIdx  dw  - which user (0-based index)
+;   hist_type     db  - 'D','W','T','R'
+;   hist_amt      dw  - amount
+;   hist_peer     dw  - peer account number (0 if none)
+;
+; Algorithm:
+;   slot  = histCount_arr[user]          (0..9, wraps)
+;   flat  = user*MAX_HIST + slot
+;   historyType_arr[flat]     = type
+;   historyAmt_arr [flat*2]   = amt
+;   historyPeer_arr[flat*2]   = peer
+;   histCount_arr[user]++ (capped at MAX_HIST via mod)
+;
+; Preserves: all registers (full push/pop)
+; =====================================================
+appendHistory proc near
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    ; ---- Load user index into AX ----
+    mov ax,hist_userIdx       ; AX = user index U
+
+    ; ---- compute U * MAX_HIST ----
+    mov cx,MAX_HIST
+    mul cx                    ; AX = U * 10   (DX destroyed, ok)
+
+    ; ---- add current slot index ----
+    mov bx,hist_userIdx       ; BX = U (restore; AX was clobbered by mul)
+    shl bx,1                  ; BX = word offset into histCount_arr
+    mov cx,histCount_arr[bx]  ; CX = histCount_arr[U]  (slot 0..9)
+    add ax,cx                 ; AX = flat index = U*10 + slot
+
+    ; ---- store type (byte array, direct index) ----
+    mov si,ax                 ; SI = flat byte index
+    mov dl,hist_type
+    mov historyType_arr[si],dl
+
+    ; ---- store amt and peer (word arrays, *2) ----
+    shl si,1                  ; SI = flat word offset
+    mov dx,hist_amt
+    mov historyAmt_arr[si],dx
+    mov dx,hist_peer
+    mov historyPeer_arr[si],dx
+
+    ; ---- bump histCount_arr[U], cap at MAX_HIST ----
+    mov bx,hist_userIdx
+    shl bx,1                  ; word offset
+    mov ax,histCount_arr[bx]
+    inc ax
+    cmp ax,MAX_HIST
+    jl  ah_noWrap
+    mov ax,0                  ; wrap back to slot 0 (ring buffer)
+ah_noWrap:
+    mov histCount_arr[bx],ax
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+appendHistory endp
+
+; =====================================================
+; PROCEDURE: readMaskedPin
+; -------------------------------------------------------
+; Reads exactly 4 masked digits ('*' echo) and returns
+; the numeric PIN value in pinTemp (dw).
+;
+; [FIX-1] Root-cause explanation:
+;   The original code used "mul dx" to multiply the
+;   running total by 10.  "mul dx" = unsigned AX * DX.
+;   But AX has ALREADY been loaded with the running
+;   total and DX was expected to be 10.  The problem:
+;   int 21h / ah=02h (print '*') DESTROYS DX (DOS uses
+;   DX as the character to print and AX as the service
+;   selector).  So when mul dx executes, DX is garbage
+;   left by int 21h -- not 10.  The fix is:
+;     1. Use a memory variable (pinTemp) as the
+;        accumulator so AX corruption by int 21h is
+;        harmless to the running total.
+;     2. Use CX (not DX) as the multiplier = 10, since
+;        CX is the loop counter and is not clobbered by
+;        int 21h / ah=02h or ah=08h.
+; =====================================================
+readMaskedPin proc near
+
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov pinTemp,0             ; clear accumulator
+    mov bx,4                  ; loop 4 digits
+
+rmp_loop:
+    cmp bx,0
+    je  rmp_done
+
+    ; --- read one key (no echo) ---
+    mov ah,08h
+    int 21h                   ; AL = key char  (AX clobbered by DOS)
+    ; Save digit BEFORE int 21h for echo destroys AL
+    push ax                   ; save raw key
+
+    ; --- echo '*' ---
+    mov dl,'*'
+    mov ah,02h
+    int 21h                   ; DX, AX clobbered -- OK, digit is on stack
+
+    ; --- recover digit ---
+    pop ax                    ; AL = original key
+    sub al,48                 ; AL = digit value 0-9
+    mov ah,0                  ; AX = digit value
+
+    ; --- accumulate: pinTemp = pinTemp * 10 + digit ---
+    push ax                   ; save digit
+
+    mov ax,pinTemp
+    mov cx,10
+    mul cx                    ; AX = pinTemp * 10 (CX=10 never touched by DOS)
+    mov pinTemp,ax            ; store back
+
+    pop ax                    ; AL = digit
+    add pinTemp,ax            ; pinTemp += digit
+
+    dec bx
+    jmp rmp_loop
+
+rmp_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+readMaskedPin endp
+
+; =====================================================
+; MAIN PROGRAM
+; =====================================================
+
+main proc
+
+    mov ax,@data
+    mov ds,ax
+
+    ; --------------------------------------------------
+    ; BOOT SEQUENCE
+    ; --------------------------------------------------
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,loadingMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,newline
+    int 21h
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    ; --------------------------------------------------
+    ; FIRST-TIME ADMIN PIN SETUP
+    ; --------------------------------------------------
+
+    cmp isAdminPinSet,1
+    je  start
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,adminPromptMsg
+    int 21h
+
+    call flushKbBuffer        ; drain any leftover keystrokes before PIN entry
+    call readMaskedPin        ; result in pinTemp
+    mov ax,pinTemp
+    mov adminPin,ax
+    mov isAdminPinSet,1
+
+    mov ah,09h
+    lea dx,newline
+    int 21h
+
+    mov ah,09h
+    lea dx,successMsg
+    int 21h
+
+    call pause
+
+; =====================================================
+; MAIN MENU ROUTER
+; =====================================================
+
+start:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,mainMenu
+    int 21h
+
+    mov ah,01h
+    int 21h
+
+    mov choice,al
+
+    cmp choice,'1'
+    je  doRegister
+
+    cmp choice,'2'
+    je  doLogin
+
+    cmp choice,'3'
+    je  exitProgram
+
+    cmp choice,'4'
+    je  adminMode
+
+    jmp start
+
+; =====================================================
+; REGISTER ACCOUNT
+; =====================================================
+
+doRegister:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ax,userCount
+    cmp ax,MAX_USERS
+    jae systemFull
+
+    ; --- Read Name ---
+    mov ah,09h
+    lea dx,nameMsg
+    int 21h
+
+    lea si,tempName
+    mov cx,19
+
+nameLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  nameDone
+    cmp cx,0
+    je  nameDone
+    mov [si],al
+    inc si
+    dec cx
+    jmp nameLoop
+
+nameDone:
+    mov byte ptr [si],'$'
+
+    ; --- Read Account Number ---
+    mov ah,09h
+    lea dx,accMsg
+    int 21h
+
+    mov bx,0
+
+accLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  accDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp accLoop
+
+accDone:
+
+    ; --- Duplicate check ---
+    mov cx,userCount
+    cmp cx,0
+    je  noDuplicate
+
+    mov si,0
+
+dupCheckLoop:
+    mov di,si
+    shl di,1
+    cmp bx,accountNo_arr[di]
+    je  dupAccount
+    inc si
+    loop dupCheckLoop
+
+noDuplicate:
+
+    ; Store account number
+    mov si,userCount
+    shl si,1
+    mov accountNo_arr[si],bx
+
+    ; --- Read PIN (FIXED via readMaskedPin) ---
+    mov ah,09h
+    lea dx,pinMsg
+    int 21h
+
+    call flushKbBuffer        ; drain leftover ENTER from account number input
+    call readMaskedPin        ; [FIX-1] PIN now read correctly into pinTemp
+
+    ; Store PIN
+    mov ax,pinTemp
+    mov si,userCount
+    shl si,1
+    mov userPin_arr[si],ax
+
+    ; --- Read Initial Deposit ---
+    mov ah,09h
+    lea dx,initialDepositMsg
+    int 21h
+
+    mov bx,0
+
+initLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  initDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp initLoop
+
+initDone:
+
+    ; Store balance
+    mov si,userCount
+    shl si,1
+    mov balance_arr[si],bx
+
+    ; --- Append initial deposit to history ---
+    ; [FIX-2] uses appendHistory so we get a real record
+    mov ax,userCount
+    mov hist_userIdx,ax
+    mov hist_type,'D'
+    mov hist_amt,bx
+    mov hist_peer,0
+    call appendHistory
+
+    ; --- Copy name into userName_arr slot ---
+    mov ax,userCount
+    mov cx,20
+    mul cx
+    mov di,ax
+
+    lea si,tempName
+
+copyName:
+    mov al,[si]
+    mov userName_arr[di],al
+    cmp al,'$'
+    je  copyNameDone
+    inc si
+    inc di
+    jmp copyName
+
+copyNameDone:
+
+    inc userCount
+
+    mov ah,09h
+    lea dx,successMsg
+    int 21h
+
+    call pause
+    jmp start
+
+systemFull:
+    mov ah,09h
+    lea dx,systemFullMsg
+    int 21h
+    call pause
+    jmp start
+
+dupAccount:
+    mov ah,09h
+    lea dx,duplicateMsg
+    int 21h
+    call pause
+    jmp start
+
+; =====================================================
+; LOGIN
+; [FIX-3] Architecture confirmed correct:
+;   1. Read account number
+;   2. Find user index -> currentUserIndex
+;   3. Prompt PIN
+;   4. Compare PIN via readMaskedPin (now correct)
+;   5. Only on match -> jmp userPanel
+; =====================================================
+
+doLogin:
+
+    mov attempts,0
+
+loginTop:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,loginAccMsg
+    int 21h
+
+    mov bx,0
+
+loginAccLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  loginAccDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp loginAccLoop
+
+loginAccDone:
+
+    mov cx,userCount
+    cmp cx,0
+    je  loginFail
+
+    mov si,0
+
+loginSearchLoop:
+    mov di,si
+    shl di,1
+    cmp bx,accountNo_arr[di]
+    je  loginAccFound
+    inc si
+    loop loginSearchLoop
+    jmp loginFail
+
+loginAccFound:
+
+    mov currentUserIndex,si
+
+    ; --- Prompt and read PIN (FIXED) ---
+    mov ah,09h
+    lea dx,loginPinMsg
+    int 21h
+
+    call flushKbBuffer        ; drain leftover ENTER from account number input
+    call readMaskedPin        ; [FIX-1] result in pinTemp
+
+    ; --- Compare PIN ---
+    mov si,currentUserIndex
+    shl si,1                  ; word offset
+    mov ax,pinTemp            ; AX = entered PIN (numeric)
+    cmp ax,userPin_arr[si]    ; compare against stored PIN
+    jne loginFail             ; [FIX-3] mismatch -> fail immediately
+
+    ; --- Login successful ---
+    mov attempts,0
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,holderText
+    int 21h
+
+    mov ax,currentUserIndex
+    mov cx,20
+    mul cx
+    mov si,ax
+    lea dx,userName_arr
+    add dx,si
+    mov ah,09h
+    int 21h
+
+    call pause
+    jmp userPanel
+
+loginFail:
+
+    inc attempts
+    cmp attempts,3
+    je  loginBlocked
+
+    mov ah,09h
+    lea dx,loginFailMsg
+    int 21h
+    call pause
+    jmp start
+
+loginBlocked:
+
+    mov ah,09h
+    lea dx,blockedMsg
+    int 21h
+    call pause
+    jmp exitProgram
+
+; =====================================================
+; ADMIN MODE
+; =====================================================
+
+adminMode:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,adminLoginMsg
+    int 21h
+
+    call flushKbBuffer        ; drain leftover ENTER from menu choice
+    call readMaskedPin        ; result in pinTemp
+
+    mov ax,pinTemp
+    cmp ax,adminPin
+    jne adminFail
+
+; =====================================================
+; ADMIN PANEL ROUTER
+; =====================================================
+
+adminPanel:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,adminMenuText
+    int 21h
+
+    mov ah,01h
+    int 21h
+    mov choice,al
+
+    cmp choice,'1'
+    je  viewLedger
+
+    cmp choice,'2'
+    je  viewReserves
+
+    cmp choice,'3'
+    je  exitAdmin
+
+    jmp adminPanel
+
+adminFail:
+    mov ah,09h
+    lea dx,loginFailMsg
+    int 21h
+    call pause
+    jmp start
+
+exitAdmin:
+    jmp start
+
+; =====================================================
+; ADMIN [1] - MASTER LEDGER
+; =====================================================
+
+viewLedger:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,ledgerHeader
+    int 21h
+
+    mov di,0
+
+ledgerLoop:
+
+    cmp di,userCount
+    jge ledgerDone
+
+    mov ah,09h
+    lea dx,ledgerRowPrefix
+    int 21h
+
+    mov si,di
+    shl si,1
+    mov ax,accountNo_arr[si]
+    call printNumber
+
+    mov ah,09h
+    lea dx,ledgerNameCol
+    int 21h
+
+    mov ax,di
+    mov cx,20
+    mul cx
+    mov si,ax
+    lea dx,userName_arr
+    add dx,si
+    mov ah,09h
+    int 21h
+
+    mov ah,09h
+    lea dx,ledgerBalCol
+    int 21h
+
+    mov si,di
+    shl si,1
+    mov ax,balance_arr[si]
+    call printNumber
+
+    inc di
+    jmp ledgerLoop
+
+ledgerDone:
+
+    mov ah,09h
+    lea dx,newline
+    int 21h
+
+    call pause
+    jmp adminPanel
+
+; =====================================================
+; ADMIN [2] - TOTAL BANK ASSET LIQUIDITY
+; =====================================================
+
+viewReserves:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    ; Accumulate in SI (never clobbered by int 21h)
+    mov si,0
+    mov di,0
+
+reserveLoop:
+    cmp di,userCount
+    jge reserveDone
+    mov bx,di
+    shl bx,1
+    mov ax,balance_arr[bx]
+    add si,ax
+    inc di
+    jmp reserveLoop
+
+reserveDone:
+
+    mov grandTotal,si         ; bridge across int 21h
+
+    mov ah,09h
+    lea dx,totalAssetsMsg
+    int 21h
+
+    mov ax,grandTotal
+    call printNumber
+
+    mov ah,09h
+    lea dx,totalAssetsEnd
+    int 21h
+
+    call pause
+    jmp adminPanel
+
+; =====================================================
+; USER PANEL
+; =====================================================
+
+userPanel:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,userMenu
+    int 21h
+
+    mov ah,01h
+    int 21h
+    mov choice,al
+
+    cmp choice,'1'
+    je  doDeposit
+
+    cmp choice,'2'
+    je  doWithdraw
+
+    cmp choice,'3'
+    je  doBalance
+
+    cmp choice,'4'
+    je  doDetails
+
+    cmp choice,'5'
+    je  doHistory
+
+    cmp choice,'6'
+    je  doChangePin
+
+    cmp choice,'7'
+    je  doTransfer
+
+    cmp choice,'8'
+    je  doLogout
+
+    jmp userPanel
+
+; =====================================================
+; [1] DEPOSIT
+; =====================================================
+
+doDeposit:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,depositMsg
+    int 21h
+
+    mov bx,0
+
+depLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  depDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp depLoop
+
+depDone:
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    add ax,bx
+    mov balance_arr[si],ax
+
+    ; Append history record
+    mov ax,currentUserIndex
+    mov hist_userIdx,ax
+    mov hist_type,'D'
+    mov hist_amt,bx
+    mov hist_peer,0
+    call appendHistory
+
+    mov ah,09h
+    lea dx,successMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [2] WITHDRAW
+; =====================================================
+
+doWithdraw:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,withdrawMsg
+    int 21h
+
+    mov bx,0
+
+wthLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  wthDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp wthLoop
+
+wthDone:
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    cmp ax,bx
+    jb  doInsufficientFunds
+
+    sub ax,bx
+    mov balance_arr[si],ax
+
+    mov ax,currentUserIndex
+    mov hist_userIdx,ax
+    mov hist_type,'W'
+    mov hist_amt,bx
+    mov hist_peer,0
+    call appendHistory
+
+    mov ah,09h
+    lea dx,successMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+doInsufficientFunds:
+    mov ah,09h
+    lea dx,insufficientMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [3] BALANCE INQUIRY
+; =====================================================
+
+doBalance:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,balanceText
+    int 21h
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    call printNumber
+
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [4] ACCOUNT DETAILS
+; =====================================================
+
+doDetails:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,detailsText
+    int 21h
+
+    mov ah,09h
+    lea dx,accountText
+    int 21h
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,accountNo_arr[si]
+    call printNumber
+
+    mov ah,09h
+    lea dx,holderText
+    int 21h
+
+    mov ax,currentUserIndex
+    mov cx,20
+    mul cx
+    mov si,ax
+    lea dx,userName_arr
+    add dx,si
+    mov ah,09h
+    int 21h
+
+    mov ah,09h
+    lea dx,balanceText
+    int 21h
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    call printNumber
+
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [5] VIEW TRANSACTION HISTORY  (FULL - ALL RECORDS)
+; =====================================================
+; [FIX-2] Now loops through ALL recorded transactions
+; for the current user (up to MAX_HIST entries) using
+; the 2-D history arrays.
+;
+; The number of valid records = histCount_arr[user]
+; BUT: because the ring buffer wraps at MAX_HIST,
+; once histCount_arr reaches 0 again after wrap, we
+; store the total valid count separately.
+;
+; For simplicity and reliability in EMU8086:
+;   - We always display up to MAX_HIST (10) slots.
+;   - Slots with type == 'N' are skipped (never used).
+;   - Oldest entry is slot 0, newest is (count-1) % 10
+;   - If count has NOT wrapped, display 0..(count-1).
+;   - If count HAS wrapped (ring), display all 10 in
+;     ring order; current histCount_arr value is the
+;     index of the NEXT write slot (oldest record).
+;
+; To distinguish wrap vs no-wrap we use a separate
+; histFull_arr (db MAX_USERS dup(0)).
+; =====================================================
+
+doHistory:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    mov ah,09h
+    lea dx,historyHeader
+    int 21h
+
+    ; CX = total tx count for current user
+    mov bx,currentUserIndex
+    shl bx,1
+    mov cx,histCount_arr[bx]   ; CX = next write slot index
+
+    ; Check if ANY record exists: peek at slot 0 type
+    mov ax,currentUserIndex
+    mov bx,MAX_HIST
+    mul bx                     ; AX = U*10  (DX destroyed, ok)
+    mov si,ax                  ; SI = base flat byte index for this user
+
+    ; If the VERY first slot is 'N' and count is 0 -> no history
+    mov al,historyType_arr[si]
+    cmp al,'N'
+    jne  histHasData
+
+    ; count == 0 means nothing ever written
+    cmp cx,0
+    jne  histHasData
+
+    mov ah,09h
+    lea dx,noHistoryMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+histHasData:
+
+    ; We now walk ALL 10 slots and print non-N entries.
+    ; SI = flat base for this user (U*10), already computed.
+    ; Walk slot 0 .. MAX_HIST-1:
+
+    mov di,0                   ; DI = slot index 0..9
+
+histWalkLoop:
+
+    cmp di,MAX_HIST
+    jge histWalkDone
+
+    ; flat byte index = SI_base + DI
+    mov bx,si
+    add bx,di                  ; BX = flat byte index
+
+    mov al,historyType_arr[bx]
+    cmp al,'N'
+    je  histNextSlot           ; skip empty slots
+
+    ; ---- print separator ----
+    push si
+    push di
+    push bx
+    mov ah,09h
+    lea dx,histSepLine
+    int 21h
+    pop bx
+    pop di
+    pop si
+
+    ; ---- print type label and amount ----
+    mov al,historyType_arr[bx]
+
+    cmp al,'D'
+    je  hist_printDep
+
+    cmp al,'W'
+    je  hist_printWth
+
+    cmp al,'T'
+    je  hist_printSnd
+
+    cmp al,'R'
+    je  hist_printRcv
+
+    jmp histNextSlot
+
+hist_printDep:
+    push si
+    push di
+    push bx
+    mov ah,09h
+    lea dx,histTypeDepMsg
+    int 21h
+    pop bx
+    pop di
+    pop si
+    jmp hist_printAmt
+
+hist_printWth:
+    push si
+    push di
+    push bx
+    mov ah,09h
+    lea dx,histTypeWthMsg
+    int 21h
+    pop bx
+    pop di
+    pop si
+    jmp hist_printAmt
+
+hist_printSnd:
+    push si
+    push di
+    push bx
+    mov ah,09h
+    lea dx,histTypeSndMsg
+    int 21h
+    pop bx
+    pop di
+    pop si
+    jmp hist_printAmt
+
+hist_printRcv:
+    push si
+    push di
+    push bx
+    mov ah,09h
+    lea dx,histTypeRcvMsg
+    int 21h
+    pop bx
+    pop di
+    pop si
+
+hist_printAmt:
+
+    ; word offset = flat_index * 2
+    ; BX = flat byte index (still valid via stack round-trips above)
+    push si
+    push di
+    push bx
+
+    shl bx,1                   ; BX = word offset
+    mov ax,historyAmt_arr[bx]
+    call printNumber
+
+    ; ---- print peer info if transfer ----
+    ; Restore flat byte index
+    pop bx                     ; BX = word offset (bx was shifted)
+    push bx
+    shr bx,1                   ; back to byte index
+    mov al,historyType_arr[bx]
+
+    cmp al,'T'
+    je  hist_showToAcc
+
+    cmp al,'R'
+    je  hist_showFromAcc
+
+    ; Deposit or Withdraw -> no peer
+    pop bx
+    pop di
+    pop si
+    jmp histNextSlot
+
+hist_showToAcc:
+    pop bx                     ; byte index
+    push bx
+    shl bx,1                   ; word offset
+    mov ax,historyPeer_arr[bx] ; peer acc no
+    pop bx
+    pop di
+    pop si
+
+    push ax                    ; save peer acc no
+    push si
+    push di
+    mov ah,09h
+    lea dx,newline
+    int 21h
+    mov ah,09h
+    lea dx,histToAcc
+    int 21h
+    pop di
+    pop si
+    pop ax
+    call printNumber
+
+    ; look up peer name
+    call printPeerNameFromAX
+    jmp histNextSlot
+
+hist_showFromAcc:
+    pop bx                     ; byte index
+    push bx
+    shl bx,1                   ; word offset
+    mov ax,historyPeer_arr[bx] ; peer acc no
+    pop bx
+    pop di
+    pop si
+
+    push ax
+    push si
+    push di
+    mov ah,09h
+    lea dx,newline
+    int 21h
+    mov ah,09h
+    lea dx,histFromAcc
+    int 21h
+    pop di
+    pop si
+    pop ax
+    call printNumber
+
+    call printPeerNameFromAX
+    jmp histNextSlot
+
+histNextSlot:
+    inc di
+    jmp histWalkLoop
+
+histWalkDone:
+
+    mov ah,09h
+    lea dx,histSepLine
+    int 21h
+
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [6] CHANGE PIN
+; =====================================================
+
+doChangePin:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    ; --- First: verify current PIN ---
+    mov ah,09h
+    lea dx,changePinVerifyMsg  ; "Enter Current PIN to Verify: "
+    int 21h
+
+    call flushKbBuffer         ; drain any leftover keystrokes
+    call readMaskedPin         ; read current PIN into pinTemp
+
+    ; Compare entered PIN against stored PIN for this user
+    mov ax,pinTemp
+    mov si,currentUserIndex
+    shl si,1
+    cmp ax,userPin_arr[si]
+    jne changePinFail          ; wrong current PIN -> reject
+
+    ; --- Current PIN verified: prompt for new PIN ---
+    mov ah,09h
+    lea dx,newPinMsg
+    int 21h
+
+    call flushKbBuffer         ; drain before new PIN entry
+    call readMaskedPin         ; read new PIN into pinTemp
+
+    ; Save new PIN into the user's slot
+    mov ax,pinTemp
+    mov si,currentUserIndex
+    shl si,1
+    mov userPin_arr[si],ax
+
+    mov ah,09h
+    lea dx,succesMsg
+    int 21h
+
+    ; Auto-logout: PIN changed, force re-authentication
+    mov ah,09h
+    lea dx,logoutMsg
+    int 21h
+
+    call pause
+    jmp start                  ; return to main menu, user must login again
+
+changePinFail:
+
+    mov ah,09h
+    lea dx,loginFailMsg        ; reuse "INVALID LOGIN DETAILS" banner
+    int 21h
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [7] TRANSFER MONEY
+; =====================================================
+
+doTransfer:
+
+    call clearScreen
+
+    mov ah,09h
+    lea dx,welcomeMsg
+    int 21h
+
+    ; List all accounts
+    mov ah,09h
+    lea dx,transferListHeader
+    int 21h
+
+    mov di,0
+
+listAccLoop:
+    cmp di,userCount
+    jge listAccDone
+
+    mov ah,09h
+    lea dx,ledgerRowPrefix
+    int 21h
+
+    mov si,di
+    shl si,1
+    mov ax,accountNo_arr[si]
+    call printNumber
+
+    mov ah,09h
+    lea dx,transferAccText
+    int 21h
+
+    push di
+    mov ax,di
+    mov cx,20
+    mul cx
+    mov si,ax
+    lea dx,userName_arr
+    add dx,si
+    mov ah,09h
+    int 21h
+    pop di
+
+    inc di
+    jmp listAccLoop
+
+listAccDone:
+
+    ; Show sender's live balance
+    mov ah,09h
+    lea dx,senderBalMsg
+    int 21h
+
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    call printNumber
+
+    ; Prompt for receiver account number
+    mov ah,09h
+    lea dx,transferAccMsg
+    int 21h
+
+    mov bx,0
+
+recAccLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  recAccDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp recAccLoop
+
+recAccDone:
+
+    ; Validate receiver
+    mov cx,userCount
+    cmp cx,0
+    je  doInvalidRec
+
+    mov di,0
+
+findRecLoop:
+    cmp di,userCount
+    jge doInvalidRec
+
+    mov si,di
+    shl si,1
+    cmp bx,accountNo_arr[si]
+    je  recFound
+
+    inc di
+    jmp findRecLoop
+
+recFound:
+
+    cmp di,currentUserIndex
+    je  doSelfTransfer
+
+    ; Prompt for amount
+    mov ah,09h
+    lea dx,transferMsg
+    int 21h
+
+    mov bx,0
+
+trAmtLoop:
+    mov ah,01h
+    int 21h
+    cmp al,13
+    je  trAmtDone
+    sub al,48
+    mov ah,0
+    push ax
+    mov ax,bx
+    mov cx,10
+    mul cx
+    mov bx,ax
+    pop ax
+    add bx,ax
+    jmp trAmtLoop
+
+trAmtDone:
+
+    ; Check sender balance
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,balance_arr[si]
+    cmp ax,bx
+    jb  doInsufficientTr
+
+    ; Deduct from sender
+    sub ax,bx
+    mov balance_arr[si],ax
+
+    ; Add to receiver
+    ; DI = receiver index
+    mov si,di
+    shl si,1
+    mov ax,balance_arr[si]
+    add ax,bx
+    mov balance_arr[si],ax
+
+    ; Get receiver account number for sender history peer
+    mov si,di
+    shl si,1
+    mov ax,accountNo_arr[si]   ; AX = receiver acc no (for sender's peer)
+
+    ; Append sender history  (T = Sent)
+    mov cx,currentUserIndex
+    mov hist_userIdx,cx
+    mov hist_type,'T'
+    mov hist_amt,bx
+    mov hist_peer,ax           ; peer = receiver acc no
+    call appendHistory
+
+    ; Get sender account number for receiver history peer
+    mov si,currentUserIndex
+    shl si,1
+    mov ax,accountNo_arr[si]   ; AX = sender acc no (for receiver's peer)
+
+    ; Append receiver history (R = Received)
+    mov hist_userIdx,di
+    mov hist_type,'R'
+    mov hist_amt,bx
+    mov hist_peer,ax           ; peer = sender acc no
+    call appendHistory
+
+    mov ah,09h
+    lea dx,successMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+doInsufficientTr:
+    mov ah,09h
+    lea dx,insufficientMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+doInvalidRec:
+    mov ah,09h
+    lea dx,invalidRecMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+doSelfTransfer:
+    mov ah,09h
+    lea dx,selfTransferMsg
+    int 21h
+    call pause
+    jmp userPanel
+
+; =====================================================
+; [8] LOGOUT
+; =====================================================
+
+doLogout:
+
+    mov ah,09h
+    lea dx,logoutMsg
+    int 21h
+    call pause
+    jmp start
+
+; =====================================================
+; EXIT PROGRAM
+; =====================================================
+
+exitProgram:
+
+    mov ah,4ch
+    int 21h
+
+main endp
+
+; =====================================================
+; PROCEDURE: printPeerNameFromAX
+; -------------------------------------------------------
+; Input:  AX = peer account number to search for
+; Searches accountNo_arr for AX, then prints:
+;   " | Name: <holder name>"
+; Uses BP to protect AX across int 21h calls.
+; Preserves: all registers
+; =====================================================
+printPeerNameFromAX proc near
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    mov bp,ax                  ; BP = peer acc no (safe across int 21h)
+
+    mov di,0
+
+ppn_searchLoop:
+
+    cmp di,userCount
+    jge ppn_notFound
+
+    mov bx,di
+    shl bx,1
+    mov ax,accountNo_arr[bx]
+    cmp ax,bp
+    je  ppn_found
+
+    inc di
+    jmp ppn_searchLoop
+
+ppn_found:
+
+    mov ah,09h
+    lea dx,histNameLabel
+    int 21h
+
+    ; Print name from userName_arr slot DI
+    mov ax,di
+    mov cx,20
+    mul cx
+    mov si,ax
+    lea dx,userName_arr
+    add dx,si
+    mov ah,09h
+    int 21h
+
+    jmp ppn_done
+
+ppn_notFound:
+
+    ; peer not in DB - print nothing extra
+
+ppn_done:
+
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+printPeerNameFromAX endp
+
+end main

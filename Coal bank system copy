@@ -1,0 +1,800 @@
+                                                                ; =====================================================
+;      COAL BANK MANAGEMENT SYSTEM - EMU8086
+; =====================================================
+
+.model small
+.stack 100h
+
+.data
+
+welcomeMsg db 10,13,"====== COAL BANK MANAGEMENT SYSTEM ======$"
+
+mainMenu db 10,13,10,13
+         db "1. Register Account",10,13
+         db "2. Login",10,13
+         db "3. Exit",10,13
+         db "Choose Option: $"
+
+userMenu db 10,13,10,13
+         db "1. Deposit Money",10,13
+         db "2. Withdraw Money",10,13
+         db "3. Balance Inquiry",10,13
+         db "4. Account Details",10,13
+         db "5. Change PIN",10,13
+         db "6. Transfer Money",10,13
+         db "7. Logout",10,13
+         db "Choose Option: $"
+
+nameMsg db 10,13,"Enter Name: $"
+accMsg db 10,13,"Enter Account Number: $"
+pinMsg db 10,13,"Enter 4-Digit PIN: $"
+
+loginAccMsg db 10,13,"Enter Account Number: $"
+loginPinMsg db 10,13,"Enter PIN: $"
+
+depositMsg db 10,13,"Enter Deposit Amount: $"
+withdrawMsg db 10,13,"Enter Withdraw Amount: $"
+transferAccMsg db 10,13,"Enter Receiver Account Number: $"
+transferMsg db 10,13,"Enter Transfer Amount: $"
+
+initialDepositMsg db 10,13,"Enter Initial Deposit Amount: $"
+
+successMsg db 10,13,"Operation Successful!$"
+loginFailMsg db 10,13,"Invalid Login!$"
+insufficientMsg db 10,13,"Insufficient Balance!$"
+blockedMsg db 10,13,"Too Many Wrong Attempts!$"
+duplicateMsg db 10,13,"Account Number Already Registered!$"
+
+balanceText db 10,13,"Current Balance: $"
+
+detailsText db 10,13,"====== ACCOUNT DETAILS ======$"
+holderText db 10,13,"Account Holder Name: $"
+accountText db 10,13,"Account Number: $"
+availableText db 10,13,"Available Balance: $"
+
+lastTransText db 10,13,"Last Transaction: $"
+depText db "Deposit$"
+withText db "Withdraw$"
+transText db "Transfer$"
+noneText db "None$"
+
+newline db 10,13,"$"
+
+; =====================================================
+; VARIABLES
+; =====================================================
+
+userName db 20 dup('$')
+
+accountNo dw 0
+userPin dw ?
+balance dw ?
+
+choice db ?
+attempts db 0
+
+lastTrans db 'N'
+
+.code
+
+main proc
+
+mov ax,@data
+mov ds,ax
+
+start:
+
+mov ah,09h
+lea dx,welcomeMsg
+int 21h
+
+mov ah,09h
+lea dx,mainMenu
+int 21h
+
+mov ah,01h
+int 21h
+mov choice,al
+
+cmp choice,'1'
+je register
+
+cmp choice,'2'
+je login
+
+cmp choice,'3'
+je exitProgram
+
+jmp start
+
+; =====================================================
+; REGISTER
+; =====================================================
+
+register:
+
+mov ah,09h
+lea dx,nameMsg
+int 21h
+
+lea si,userName
+
+nameLoop:
+mov ah,01h
+int 21h
+cmp al,13
+je nameDone
+mov [si],al
+inc si
+jmp nameLoop
+
+nameDone:
+mov byte ptr [si],'$'
+
+mov ah,09h
+lea dx,accMsg
+int 21h
+
+mov bx,0
+
+accLoop:
+mov ah,01h
+int 21h
+
+cmp al,13
+je accDone
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp accLoop
+
+accDone:
+
+cmp accountNo,bx
+je duplicateAccount
+
+mov accountNo,bx
+jmp continueRegister
+
+duplicateAccount:
+mov ah,09h
+lea dx,duplicateMsg
+int 21h
+jmp start
+
+continueRegister:
+
+mov ah,09h
+lea dx,pinMsg
+int 21h
+
+mov bx,0
+mov cx,4
+
+pinLoop:
+mov ah,08h
+int 21h
+
+mov dl,'*'
+mov ah,02h
+int 21h
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov dx,10
+mul dx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+loop pinLoop
+
+mov userPin,bx
+
+mov ah,09h
+lea dx,initialDepositMsg
+int 21h
+
+mov bx,0
+
+initLoop:
+mov ah,01h
+int 21h
+
+cmp al,13
+je initDone
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp initLoop
+
+initDone:
+
+mov balance,bx
+mov lastTrans,'D'
+
+mov ah,09h
+lea dx,successMsg
+int 21h
+
+jmp start
+
+; =====================================================
+; LOGIN
+; =====================================================
+
+login:
+
+mov ah,09h
+lea dx,loginAccMsg
+int 21h
+
+mov bx,0
+
+l1:
+mov ah,01h
+int 21h
+
+cmp al,13
+je l2
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp l1
+
+l2:
+
+cmp bx,accountNo
+jne fail
+
+mov ah,09h
+lea dx,loginPinMsg
+int 21h
+
+mov bx,0
+mov cx,4
+
+lp:
+mov ah,08h
+int 21h
+
+mov dl,'*'
+mov ah,02h
+int 21h
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov dx,10
+mul dx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+loop lp
+
+cmp bx,userPin
+jne fail
+
+mov attempts,0
+jmp userPanel
+
+fail:
+
+inc attempts
+
+cmp attempts,3
+je blocked
+
+mov ah,09h
+lea dx,loginFailMsg
+int 21h
+
+jmp start
+
+blocked:
+
+mov ah,09h
+lea dx,blockedMsg
+int 21h
+
+jmp exitProgram
+
+; =====================================================
+; USER PANEL
+; =====================================================
+
+userPanel:
+
+mov ah,09h
+lea dx,userMenu
+int 21h
+
+mov ah,01h
+int 21h
+mov choice,al
+
+cmp choice,'1'
+je deposit
+
+cmp choice,'2'
+je withdraw
+
+cmp choice,'3'
+je showBalance
+
+cmp choice,'4'
+je showDetails
+
+cmp choice,'5'
+je changePin
+
+cmp choice,'6'
+je transferMoney
+
+cmp choice,'7'
+je start
+
+jmp userPanel
+
+; =====================================================
+; DEPOSIT
+; =====================================================
+
+deposit:
+
+mov ah,09h
+lea dx,depositMsg
+int 21h
+
+mov bx,0
+
+d1:
+mov ah,01h
+int 21h
+
+cmp al,13
+je d2
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp d1
+
+d2:
+
+add balance,bx
+mov lastTrans,'D'
+
+mov ah,09h
+lea dx,successMsg
+int 21h
+
+jmp userPanel
+
+; =====================================================
+; WITHDRAW
+; =====================================================
+
+withdraw:
+
+mov ah,09h
+lea dx,withdrawMsg
+int 21h
+
+mov bx,0
+
+w1:
+mov ah,01h
+int 21h
+
+cmp al,13
+je w2
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp w1
+
+w2:
+
+cmp balance,bx
+jc insufficient
+
+sub balance,bx
+mov lastTrans,'W'
+
+mov ah,09h
+lea dx,successMsg
+int 21h
+
+jmp userPanel
+
+insufficient:
+
+mov ah,09h
+lea dx,insufficientMsg
+int 21h
+
+jmp userPanel
+
+; =====================================================
+; TRANSFER
+; =====================================================
+
+transferMoney:
+
+mov ah,09h
+lea dx,transferAccMsg
+int 21h
+
+mov bx,0
+
+t1:
+mov ah,01h
+int 21h
+
+cmp al,13
+je t2
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov cx,10
+mul cx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+jmp t1
+
+t2:
+
+mov ah,09h
+lea dx,transferMsg
+int 21h
+
+mov cx,0
+
+t3:
+mov ah,01h
+int 21h
+
+cmp al,13
+je t4
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,cx
+mov dx,10
+mul dx
+mov cx,ax
+
+pop ax
+
+add cx,ax
+
+jmp t3
+
+t4:
+
+cmp balance,cx
+jc insufficient
+
+sub balance,cx
+mov lastTrans,'T'
+
+mov ah,09h
+lea dx,successMsg
+int 21h
+
+jmp userPanel
+
+; =====================================================
+; BALANCE
+; =====================================================
+
+showBalance:
+
+mov ah,09h
+lea dx,balanceText
+int 21h
+
+mov ax,balance
+call printNumber
+
+mov ah,09h
+lea dx,newline
+int 21h
+
+jmp userPanel
+
+; =====================================================
+; DETAILS
+; =====================================================
+
+showDetails:
+
+mov ah,09h
+lea dx,detailsText
+int 21h
+
+mov ah,09h
+lea dx,holderText
+int 21h
+
+lea dx,userName
+mov ah,09h
+int 21h
+
+mov ah,09h
+lea dx,accountText
+int 21h
+
+mov ax,accountNo
+call printNumber
+
+mov ah,09h
+lea dx,newline
+int 21h
+
+mov ah,09h
+lea dx,balanceText
+int 21h
+
+mov ax,balance
+call printNumber
+
+mov ah,09h
+lea dx,newline
+int 21h
+
+mov ah,09h
+lea dx,lastTransText
+int 21h
+
+cmp lastTrans,'D'
+je showD
+
+cmp lastTrans,'W'
+je showW
+
+cmp lastTrans,'T'
+je showT
+
+mov dx,offset noneText
+mov ah,09h
+int 21h
+
+jmp userPanel
+
+showD:
+mov dx,offset depText
+mov ah,09h
+int 21h
+jmp userPanel
+
+showW:
+mov dx,offset withText
+mov ah,09h
+int 21h
+jmp userPanel
+
+showT:
+mov dx,offset transText
+mov ah,09h
+int 21h
+jmp userPanel
+
+; =====================================================
+; CHANGE PIN
+; =====================================================
+
+changePin:
+
+mov ah,09h
+lea dx,loginPinMsg
+int 21h
+
+mov bx,0
+mov cx,4
+
+oldPinLoop:
+
+mov ah,08h
+int 21h
+
+mov dl,'*'
+mov ah,02h
+int 21h
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov dx,10
+mul dx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+loop oldPinLoop
+
+cmp bx,userPin
+jne wrongOldPin
+
+mov ah,09h
+lea dx,pinMsg
+int 21h
+
+mov bx,0
+mov cx,4
+
+newPinLoop:
+
+mov ah,08h
+int 21h
+
+mov dl,'*'
+mov ah,02h
+int 21h
+
+sub al,48
+mov ah,0
+
+push ax
+
+mov ax,bx
+mov dx,10
+mul dx
+mov bx,ax
+
+pop ax
+
+add bx,ax
+
+loop newPinLoop
+
+mov userPin,bx
+
+mov ah,09h
+lea dx,successMsg
+int 21h
+
+jmp userPanel
+
+wrongOldPin:
+
+mov ah,09h
+lea dx,loginFailMsg
+int 21h
+
+jmp userPanel
+
+; =====================================================
+; EXIT
+; =====================================================
+
+exitProgram:
+
+mov ah,4ch
+int 21h
+
+main endp
+
+; =====================================================
+; PRINT NUMBER
+; =====================================================
+
+printNumber proc
+
+mov cx,0
+mov bx,10
+
+c1:
+mov dx,0
+div bx
+
+push dx
+
+inc cx
+
+cmp ax,0
+jne c1
+
+c2:
+pop dx
+
+add dl,48
+
+mov ah,02h
+int 21h
+
+loop c2
+
+ret
+
+printNumber endp
+
+end main
